@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Componenti di Utilità
+// Assicurati di aver creato questo componente come discusso nello step precedente
 import DeviceGuard from './components/DeviceGuard';
 
 // Componenti Pagine (Admin & Auth)
@@ -15,7 +16,7 @@ import LeavesPage from './components/LeavesPage';
 // Componenti Pagine (Dipendente)
 import EmployeeDashboard from './components/EmployeeDashboard';
 
-// Stili globali (se necessario, ma importato già in main.tsx solitamente)
+// Stili globali
 import './App.css';
 
 const App: React.FC = () => {
