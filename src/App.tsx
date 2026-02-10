@@ -1,11 +1,12 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Componenti di Utilità
-// Assicurati di aver creato questo componente come discusso nello step precedente
+// --- UTILITIES ---
+// Importiamo il componente "Buttafuori" per gestire i dispositivi
+// (Assicurati di aver creato il file src/components/DeviceGuard.tsx come concordato)
 import DeviceGuard from './components/DeviceGuard';
 
-// Componenti Pagine (Admin & Auth)
+// --- COMPONENTI ADMIN (Desktop/Tablet) ---
 import LoginPage from './components/LoginPage';
 import WeeklyScheduler from './components/WeeklyScheduler';
 import CostDashboard from './components/CostDashboard';
@@ -13,24 +14,27 @@ import AdminRequestsPanel from './components/AdminRequestsPanel';
 import SettingsPage from './components/SettingsPage';
 import LeavesPage from './components/LeavesPage';
 
-// Componenti Pagine (Dipendente)
+// --- COMPONENTI DIPENDENTE (Mobile First) ---
 import EmployeeDashboard from './components/EmployeeDashboard';
 
-// Stili globali
+// --- STILI ---
 import './App.css';
 
 const App: React.FC = () => {
   return (
     <Routes>
-      {/* -----------------------------------------------------
-          ROTTA PUBBLICA (Login)
-      ------------------------------------------------------ */}
+      {/* -----------------------------------------------------------------------
+        AREA PUBBLICA
+        -----------------------------------------------------------------------
+      */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* -----------------------------------------------------
-          ROTTE ADMIN (Protette da Mobile)
-          Se un mobile accede qui, viene reindirizzato a /employee
-      ------------------------------------------------------ */}
+      {/* -----------------------------------------------------------------------
+        AREA ADMIN (Planning & Gestione)
+        Queste rotte sono accessibili SOLO da Desktop/Tablet.
+        Se un utente Mobile prova ad accedere, DeviceGuard lo reindirizza a /employee.
+        -----------------------------------------------------------------------
+      */}
       <Route 
         path="/" 
         element={
@@ -39,7 +43,7 @@ const App: React.FC = () => {
           </DeviceGuard>
         } 
       />
-      
+
       <Route 
         path="/costs" 
         element={
@@ -76,16 +80,19 @@ const App: React.FC = () => {
         } 
       />
 
-      {/* -----------------------------------------------------
-          ROTTA DIPENDENTE (Mobile First)
-          Questa è la "Home" per chi accede da smartphone.
-      ------------------------------------------------------ */}
+      {/* -----------------------------------------------------------------------
+        AREA DIPENDENTE (Mobile Experience)
+        Questa è la dashboard semplificata per chi consulta i turni da smartphone.
+        -----------------------------------------------------------------------
+      */}
       <Route path="/employee" element={<EmployeeDashboard />} />
 
-      {/* -----------------------------------------------------
-          FALLBACK / 404
-          Reindirizza alla home (che poi lo smisterà in base al device)
-      ------------------------------------------------------ */}
+      {/* -----------------------------------------------------------------------
+        CATCH-ALL (Gestione 404)
+        Qualsiasi rotta non riconosciuta riporta alla Home ("/").
+        Da lì, il DeviceGuard smisterà di nuovo l'utente (Mobile -> Employee, Desktop -> Admin).
+        -----------------------------------------------------------------------
+      */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
