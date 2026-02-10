@@ -1,172 +1,249 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, Trash2, Clock, User, Briefcase } from 'lucide-react';
 import { supabase } from '../supabase';
-import { X, Clock, Trash2, Check, User } from 'lucide-react';
+
+// Definiamo il tipo Shift anche qui (o importalo da un file types.ts condiviso)
+interface Shift {
+  id: string;
+  employee_name: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  role?: string;
+}
 
 interface ShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (startTime: string, endTime: string, notes: string) => void;
-  onDelete?: () => void;
-  employeeName: string;
-  date: Date;
-  initialData?: { startTime: string; endTime: string; notes: string };
+  initialDate: string; // <--- Ecco la proprietà che mancava!
+  existingShift: Shift | null;
 }
 
-export default function ShiftModal({ isOpen, onClose, onSave, onDelete, employeeName, date, initialData }: ShiftModalProps) {
-  const [activeTab, setActiveTab] = useState<'templates' | 'manual'>('templates');
-  const [startTime, setStartTime] = useState(initialData?.startTime || '09:00');
-  const [endTime, setEndTime] = useState(initialData?.endTime || '15:00');
-  const [notes, setNotes] = useState(initialData?.notes || '');
-  const [templates, setTemplates] = useState<any[]>([]);
+const ShiftModal: React.FC<ShiftModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  initialDate, 
+  existingShift 
+}) => {
+  const [employeeName, setEmployeeName] = useState('');
+  const [date, setDate] = useState('');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('17:00');
+  const [role, setRole] = useState('Cameriere');
+  const [loading, setLoading] = useState(false);
 
-  // Carica i template (Pranzo, Cena, ecc.)
+  // Quando il modale si apre o cambiano le props, aggiorniamo i campi
   useEffect(() => {
-    async function loadTemplates() {
-      const { data } = await supabase.from('shift_templates').select('*').order('start_time');
-      if (data) setTemplates(data);
+    if (existingShift) {
+      // MODALITÀ MODIFICA: Carica i dati del turno esistente
+      setEmployeeName(existingShift.employee_name);
+      setDate(existingShift.date);
+      setStartTime(existingShift.start_time);
+      setEndTime(existingShift.end_time);
+      setRole(existingShift.role || 'Cameriere');
+    } else {
+      // MODALITÀ CREAZIONE: Usa la data cliccata e resetta il resto
+      setEmployeeName('');
+      setDate(initialDate); // Usa la data passata dal Scheduler
+      setStartTime('09:00');
+      setEndTime('17:00');
+      setRole('Cameriere');
     }
-    if (isOpen) {
-      loadTemplates();
-      // Se stiamo modificando un turno esistente, andiamo direttamente al manuale
-      if (initialData?.notes) {
-        setStartTime(initialData.startTime);
-        setEndTime(initialData.endTime);
-        setNotes(initialData.notes);
-        setActiveTab('manual'); 
-      } else {
-        // Se è nuovo, reset
-        setActiveTab('templates');
-      }
-    }
-  }, [isOpen, initialData]);
+  }, [existingShift, initialDate, isOpen]);
 
-  const handleTemplateClick = (t: any) => {
-    setStartTime(t.start_time.slice(0, 5));
-    setEndTime(t.end_time.slice(0, 5));
-    setNotes(t.name);
-    // Salvataggio automatico o switch a manuale per conferma?
-    // Facciamo switch a manuale per conferma visiva veloce
-    setActiveTab('manual');
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const shiftData = {
+      employee_name: employeeName,
+      date,
+      start_time: startTime,
+      end_time: endTime,
+      role
+    };
+
+    let error;
+
+    if (existingShift) {
+      // UPDATE
+      const { error: updateError } = await supabase
+        .from('shifts')
+        .update(shiftData)
+        .eq('id', existingShift.id);
+      error = updateError;
+    } else {
+      // INSERT
+      const { error: insertError } = await supabase
+        .from('shifts')
+        .insert([shiftData]);
+      error = insertError;
+    }
+
+    setLoading(false);
+
+    if (error) {
+      console.error('Errore salvataggio:', error);
+      alert('Errore nel salvataggio del turno');
+    } else {
+      onClose(); // Chiudi e ricarica (gestito dal padre)
+    }
   };
 
-  const handleSave = () => {
-    onSave(startTime, endTime, notes);
-    onClose();
+  const handleDelete = async () => {
+    if (!existingShift) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questo turno?')) return;
+
+    setLoading(true);
+    const { error } = await supabase
+      .from('shifts')
+      .delete()
+      .eq('id', existingShift.id);
+    
+    setLoading(false);
+
+    if (error) {
+      console.error('Errore eliminazione:', error);
+      alert('Impossibile eliminare il turno');
+    } else {
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
         
-        {/* Header */}
-        <div className="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-600"/> {employeeName}
-            </h3>
-            <p className="text-xs text-slate-500 capitalize">
-              {date.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500"><X className="w-5 h-5"/></button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100">
-          <button 
-            onClick={() => setActiveTab('templates')} 
-            className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'templates' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            ⚡ Rapido
-          </button>
-          <button 
-            onClick={() => setActiveTab('manual')} 
-            className={`flex-1 py-3 text-sm font-bold transition-colors ${activeTab === 'manual' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-400 hover:text-slate-600'}`}
-          >
-            🛠️ Manuale
+        {/* HEADER */}
+        <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-gray-800">
+            {existingShift ? 'Modifica Turno' : 'Nuovo Turno'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6">
+        {/* FORM */}
+        <form onSubmit={handleSave} className="p-6 space-y-4">
           
-          {/* VISTA TEMPLATE RAPIDI */}
-          {activeTab === 'templates' && (
-            <div className="space-y-3">
-              <p className="text-xs font-bold text-slate-400 uppercase mb-2">Scegli un turno predefinito:</p>
-              <div className="grid grid-cols-2 gap-3">
-                {templates.map(t => (
-                  <button 
-                    key={t.id}
-                    onClick={() => handleTemplateClick(t)}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-md transition-all group"
-                  >
-                    <span className="font-bold text-slate-700 group-hover:text-indigo-700">{t.name}</span>
-                    <span className="text-xs text-slate-400 mt-1 bg-slate-100 px-2 py-0.5 rounded group-hover:bg-white">{t.start_time.slice(0,5)} - {t.end_time.slice(0,5)}</span>
-                  </button>
-                ))}
-                
-                {/* Bottone "Altro" che porta al manuale */}
-                <button 
-                  onClick={() => setActiveTab('manual')}
-                  className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-xl hover:border-slate-500 hover:bg-slate-50 transition-all text-slate-400"
-                >
-                  <Clock className="w-5 h-5 mb-1"/>
-                  <span className="text-xs font-bold">Personalizzato</span>
-                </button>
-              </div>
-              {templates.length === 0 && <p className="text-sm text-slate-500 italic text-center py-4">Nessun template configurato nelle impostazioni.</p>}
+          {/* Dipendente */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dipendente</label>
+            <div className="relative">
+              <User className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                required
+                placeholder="Nome dipendente..."
+                value={employeeName}
+                onChange={(e) => setEmployeeName(e.target.value)}
+                className="pl-10 w-full rounded-lg border border-gray-300 p-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
             </div>
-          )}
+          </div>
 
-          {/* VISTA MANUALE */}
-          {activeTab === 'manual' && (
-            <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Inizio</label>
-                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg text-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Fine</label>
-                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full p-3 border border-slate-300 rounded-lg text-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none" />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Etichetta Turno (Facoltativo)</label>
-                <input 
-                  type="text" 
-                  value={notes} 
-                  onChange={e => setNotes(e.target.value)} 
-                  placeholder="Es. Straordinario, Evento..." 
-                  className="w-full p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+          {/* Ruolo */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ruolo</label>
+            <div className="relative">
+              <Briefcase className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="pl-10 w-full rounded-lg border border-gray-300 p-2.5 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              >
+                <option value="Cameriere">Cameriere</option>
+                <option value="Cuoco">Cuoco</option>
+                <option value="Barista">Barista</option>
+                <option value="Manager">Manager</option>
+                <option value="Lavapiatti">Lavapiatti</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Data (Readonly o modificabile, a tua scelta) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+            <input
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          {/* Orari */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Inizio</label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="time"
+                  required
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="pl-9 w-full rounded-lg border border-gray-300 p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
-
-              <div className="pt-4 flex gap-3">
-                {onDelete && (
-                  <button 
-                    onClick={() => { if(confirm("Eliminare turno?")) { onDelete(); onClose(); } }} 
-                    className="p-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                    title="Elimina"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
-                <button 
-                  onClick={handleSave} 
-                  className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Check className="w-5 h-5" /> Conferma Turno
-                </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fine</label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  type="time"
+                  required
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="pl-9 w-full rounded-lg border border-gray-300 p-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                />
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
+          {/* FOOTER ACTIONS */}
+          <div className="flex items-center justify-between pt-4 mt-2 border-t border-gray-100">
+            {existingShift ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex items-center text-red-600 hover:text-red-700 font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition-colors"
+                disabled={loading}
+              >
+                <Trash2 className="w-5 h-5 mr-2" />
+                Elimina
+              </button>
+            ) : (
+              <div></div> /* Spacer vuoto */
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium shadow-sm transition-all disabled:opacity-50"
+              >
+                <Save className="w-5 h-5 mr-2" />
+                {loading ? 'Salvataggio...' : 'Salva'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   );
-}
+};
+
+export default ShiftModal;

@@ -1,43 +1,47 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// --- UTILITIES ---
+// Guards
 import DeviceGuard from './components/DeviceGuard';
+import RequireAuth from './components/RequireAuth'; // <--- NUOVO IMPORT
 
-// --- COMPONENTI ADMIN (Desktop/Tablet) ---
+// Pages
 import LoginPage from './components/LoginPage';
 import WeeklyScheduler from './components/WeeklyScheduler';
 import CostDashboard from './components/CostDashboard';
 import AdminRequestsPanel from './components/AdminRequestsPanel';
 import SettingsPage from './components/SettingsPage';
 import LeavesPage from './components/LeavesPage';
-
-// --- COMPONENTI DIPENDENTE (Mobile First) ---
 import EmployeeDashboard from './components/EmployeeDashboard';
 
-// --- STILI ---
 import './App.css';
 
 const App: React.FC = () => {
   return (
     <Routes>
-      {/* -----------------------------------------------------------------------
-        AREA PUBBLICA
-        -----------------------------------------------------------------------
-      */}
+      {/* --- PAGINA PUBBLICA --- */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* -----------------------------------------------------------------------
-        AREA ADMIN (Planning & Gestione)
-        Queste rotte sono accessibili SOLO da Desktop/Tablet.
-        Se un utente Mobile prova ad accedere, DeviceGuard lo reindirizza a /employee.
-        -----------------------------------------------------------------------
-      */}
+      {/* --- ROTTE ADMIN (Desktop + Loggato) --- */}
+      {/* Nota: Raggruppiamo le rotte per evitare di ripetere i wrapper mille volte */}
+      <Route element={
+        <DeviceGuard requireDesktop={true}>
+          <RequireAuth> {/* <-- Qui scatta il controllo Login */}
+             {/* Qui va inserito un Outlet se usassimo Layout, ma per ora avvolgiamo singolarmente o usiamo un wrapper comune */}
+          </RequireAuth>
+        </DeviceGuard>
+      }>
+        {/* Purtroppo React Router v6 semplice richiede nesting esplicito o wrapper ripetuti se non si usa Outlet. 
+            Per chiarezza massima e sicurezza, avvolgo singolarmente ogni rotta critica qui sotto. */}
+      </Route>
+
       <Route 
         path="/" 
         element={
           <DeviceGuard requireDesktop={true}>
-            <WeeklyScheduler />
+            <RequireAuth>
+              <WeeklyScheduler />
+            </RequireAuth>
           </DeviceGuard>
         } 
       />
@@ -46,7 +50,9 @@ const App: React.FC = () => {
         path="/costs" 
         element={
           <DeviceGuard requireDesktop={true}>
-            <CostDashboard />
+            <RequireAuth>
+              <CostDashboard />
+            </RequireAuth>
           </DeviceGuard>
         } 
       />
@@ -55,10 +61,9 @@ const App: React.FC = () => {
         path="/requests" 
         element={
           <DeviceGuard requireDesktop={true}>
-            {/* FIX: Passiamo isOpen={true} e una funzione vuota per onClose 
-              perché in questa rotta il pannello agisce da pagina intera, non da modale.
-            */}
-            <AdminRequestsPanel isOpen={true} onClose={() => {}} />
+            <RequireAuth>
+              <AdminRequestsPanel isOpen={true} onClose={() => {}} />
+            </RequireAuth>
           </DeviceGuard>
         } 
       />
@@ -67,7 +72,9 @@ const App: React.FC = () => {
         path="/leaves" 
         element={
           <DeviceGuard requireDesktop={true}>
-            <LeavesPage />
+            <RequireAuth>
+              <LeavesPage />
+            </RequireAuth>
           </DeviceGuard>
         } 
       />
@@ -76,24 +83,24 @@ const App: React.FC = () => {
         path="/settings" 
         element={
           <DeviceGuard requireDesktop={true}>
-            <SettingsPage />
+            <RequireAuth>
+              <SettingsPage />
+            </RequireAuth>
           </DeviceGuard>
         } 
       />
 
-      {/* -----------------------------------------------------------------------
-        AREA DIPENDENTE (Mobile Experience)
-        Questa è la dashboard semplificata per chi consulta i turni da smartphone.
-        -----------------------------------------------------------------------
-      */}
-      <Route path="/employee" element={<EmployeeDashboard />} />
+      {/* --- ROTTA DIPENDENTE (Mobile + Loggato) --- */}
+      <Route 
+        path="/employee" 
+        element={
+          <RequireAuth> {/* Anche il dipendente deve essere loggato! */}
+            <EmployeeDashboard />
+          </RequireAuth>
+        } 
+      />
 
-      {/* -----------------------------------------------------------------------
-        CATCH-ALL (Gestione 404)
-        Qualsiasi rotta non riconosciuta riporta alla Home ("/").
-        Da lì, il DeviceGuard smisterà di nuovo l'utente (Mobile -> Employee, Desktop -> Admin).
-        -----------------------------------------------------------------------
-      */}
+      {/* --- CATCH ALL --- */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
