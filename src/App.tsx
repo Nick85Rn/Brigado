@@ -1,11 +1,11 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// Guards
+// --- GUARDS (I file che hai appena creato) ---
 import DeviceGuard from './components/DeviceGuard';
-import RequireAuth from './components/RequireAuth'; // <--- NUOVO IMPORT
+import RequireAuth from './components/RequireAuth';
 
-// Pages
+// --- PAGINE ---
 import LoginPage from './components/LoginPage';
 import WeeklyScheduler from './components/WeeklyScheduler';
 import CostDashboard from './components/CostDashboard';
@@ -19,88 +19,60 @@ import './App.css';
 const App: React.FC = () => {
   return (
     <Routes>
-      {/* --- PAGINA PUBBLICA --- */}
+      {/* 1. LOGIN (Pubblico) */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* --- ROTTE ADMIN (Desktop + Loggato) --- */}
-      {/* Nota: Raggruppiamo le rotte per evitare di ripetere i wrapper mille volte */}
-      <Route element={
+      {/* 2. AREA ADMIN (Desktop + Auth) */}
+      {/* Avvolgiamo ogni rotta admin con DeviceGuard (solo PC) e RequireAuth (solo loggati) */}
+      
+      <Route path="/" element={
         <DeviceGuard requireDesktop={true}>
-          <RequireAuth> {/* <-- Qui scatta il controllo Login */}
-             {/* Qui va inserito un Outlet se usassimo Layout, ma per ora avvolgiamo singolarmente o usiamo un wrapper comune */}
+          <RequireAuth>
+            <WeeklyScheduler />
           </RequireAuth>
         </DeviceGuard>
-      }>
-        {/* Purtroppo React Router v6 semplice richiede nesting esplicito o wrapper ripetuti se non si usa Outlet. 
-            Per chiarezza massima e sicurezza, avvolgo singolarmente ogni rotta critica qui sotto. */}
-      </Route>
+      } />
 
-      <Route 
-        path="/" 
-        element={
-          <DeviceGuard requireDesktop={true}>
-            <RequireAuth>
-              <WeeklyScheduler />
-            </RequireAuth>
-          </DeviceGuard>
-        } 
-      />
-
-      <Route 
-        path="/costs" 
-        element={
-          <DeviceGuard requireDesktop={true}>
-            <RequireAuth>
-              <CostDashboard />
-            </RequireAuth>
-          </DeviceGuard>
-        } 
-      />
-
-      <Route 
-        path="/requests" 
-        element={
-          <DeviceGuard requireDesktop={true}>
-            <RequireAuth>
-              <AdminRequestsPanel isOpen={true} onClose={() => {}} />
-            </RequireAuth>
-          </DeviceGuard>
-        } 
-      />
-
-      <Route 
-        path="/leaves" 
-        element={
-          <DeviceGuard requireDesktop={true}>
-            <RequireAuth>
-              <LeavesPage />
-            </RequireAuth>
-          </DeviceGuard>
-        } 
-      />
-
-      <Route 
-        path="/settings" 
-        element={
-          <DeviceGuard requireDesktop={true}>
-            <RequireAuth>
-              <SettingsPage />
-            </RequireAuth>
-          </DeviceGuard>
-        } 
-      />
-
-      {/* --- ROTTA DIPENDENTE (Mobile + Loggato) --- */}
-      <Route 
-        path="/employee" 
-        element={
-          <RequireAuth> {/* Anche il dipendente deve essere loggato! */}
-            <EmployeeDashboard />
+      <Route path="/costs" element={
+        <DeviceGuard requireDesktop={true}>
+          <RequireAuth>
+            <CostDashboard />
           </RequireAuth>
-        } 
-      />
+        </DeviceGuard>
+      } />
 
-      {/* --- CATCH ALL --- */}
+      <Route path="/requests" element={
+        <DeviceGuard requireDesktop={true}>
+          <RequireAuth>
+            <AdminRequestsPanel isOpen={true} onClose={() => {}} />
+          </RequireAuth>
+        </DeviceGuard>
+      } />
+
+      <Route path="/leaves" element={
+        <DeviceGuard requireDesktop={true}>
+          <RequireAuth>
+            <LeavesPage />
+          </RequireAuth>
+        </DeviceGuard>
+      } />
+
+      <Route path="/settings" element={
+        <DeviceGuard requireDesktop={true}>
+          <RequireAuth>
+            <SettingsPage />
+          </RequireAuth>
+        </DeviceGuard>
+      } />
+
+      {/* 3. AREA DIPENDENTE (Mobile/Desktop + Auth) */}
+      <Route path="/employee" element={
+        <RequireAuth>
+          <EmployeeDashboard />
+        </RequireAuth>
+      } />
+
+      {/* 4. CATCH ALL (Redirect intelligente) */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

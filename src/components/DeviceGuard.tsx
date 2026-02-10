@@ -9,12 +9,8 @@ interface DeviceGuardProps {
 
 const DeviceGuard: React.FC<DeviceGuardProps> = ({ children, requireDesktop = false }) => {
   const isMobile = useMobile();
-
-  if (requireDesktop && isMobile) {
-    return <Navigate to="/employee" replace />;
-  }
-
+  // Se serve desktop ma sei su mobile, vai alla dashboard dipendente
+  if (requireDesktop && isMobile) return <Navigate to="/employee" replace />;
   return <>{children}</>;
 };
-
 export default DeviceGuard;
