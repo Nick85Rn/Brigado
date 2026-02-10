@@ -2,8 +2,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // --- UTILITIES ---
-// Importiamo il componente "Buttafuori" per gestire i dispositivi
-// (Assicurati di aver creato il file src/components/DeviceGuard.tsx come concordato)
 import DeviceGuard from './components/DeviceGuard';
 
 // --- COMPONENTI ADMIN (Desktop/Tablet) ---
@@ -57,7 +55,10 @@ const App: React.FC = () => {
         path="/requests" 
         element={
           <DeviceGuard requireDesktop={true}>
-            <AdminRequestsPanel />
+            {/* FIX: Passiamo isOpen={true} e una funzione vuota per onClose 
+              perché in questa rotta il pannello agisce da pagina intera, non da modale.
+            */}
+            <AdminRequestsPanel isOpen={true} onClose={() => {}} />
           </DeviceGuard>
         } 
       />
