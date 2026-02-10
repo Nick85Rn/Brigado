@@ -1,11 +1,11 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
-// --- GUARDS (I file che hai appena creato) ---
+// GUARDS
 import DeviceGuard from './components/DeviceGuard';
 import RequireAuth from './components/RequireAuth';
 
-// --- PAGINE ---
+// PAGES
 import LoginPage from './components/LoginPage';
 import WeeklyScheduler from './components/WeeklyScheduler';
 import CostDashboard from './components/CostDashboard';
@@ -22,9 +22,7 @@ const App: React.FC = () => {
       {/* 1. LOGIN (Pubblico) */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* 2. AREA ADMIN (Desktop + Auth) */}
-      {/* Avvolgiamo ogni rotta admin con DeviceGuard (solo PC) e RequireAuth (solo loggati) */}
-      
+      {/* 2. AREA ADMIN (Desktop + Loggato) */}
       <Route path="/" element={
         <DeviceGuard requireDesktop={true}>
           <RequireAuth>
@@ -65,15 +63,16 @@ const App: React.FC = () => {
         </DeviceGuard>
       } />
 
-      {/* 3. AREA DIPENDENTE (Mobile/Desktop + Auth) */}
+      {/* 3. AREA DIPENDENTE (Mobile/Desktop + Loggato) */}
       <Route path="/employee" element={
         <RequireAuth>
           <EmployeeDashboard />
         </RequireAuth>
       } />
 
-      {/* 4. CATCH ALL (Redirect intelligente) */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 4. CATCH ALL - FIX LOOP */}
+      {/* Se la rotta non esiste, manda al login che saprà dove smistare l'utente */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 };

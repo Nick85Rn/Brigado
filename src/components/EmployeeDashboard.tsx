@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../supabase';
-import { format, isToday, isYesterday, parseISO, differenceInHours, differenceInMinutes } from 'date-fns';
+import { format, isToday, isYesterday, parseISO, isTomorrow } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { 
-  Bell, Clock, Calendar, MapPin, LogOut, 
-  PlusCircle, CheckCircle2, XCircle, Clock3, Camera, ChevronRight, Play, Square, CalendarX,
-  RefreshCw, ArrowLeft, Coffee, Megaphone, Check, MessageSquare, Send, X, User, CheckCheck, Search, Shield, ChevronDown
+  Bell, Clock, Calendar, LogOut, 
+  PlusCircle, CheckCircle2, XCircle, Clock3, Camera, Play, Square, CalendarX,
+  RefreshCw, ArrowLeft, Coffee, Megaphone, Check, MessageSquare, Send, X, CheckCheck, Search, Shield, ChevronDown
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import LeaveRequestModal from './LeaveRequestModal';
 import EmployeeNotifications from './EmployeeNotifications';
 
@@ -20,7 +20,6 @@ interface Availability { id: string; date: string; reason: string; }
 interface Announcement { id: string; content: string; created_at: string; visible_from: string; visible_until: string; }
 interface Message { id: string; sender_id: string; receiver_id: string; content: string; created_at: string; is_read: boolean; }
 
-// Helper date chat
 const formatChatTime = (dateStr: string) => {
   if (!dateStr) return '';
   const date = parseISO(dateStr);
@@ -51,7 +50,6 @@ export default function EmployeeDashboard() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [readAnnouncementIds, setReadAnnouncementIds] = useState<string[]>([]);
   const [unavailabilities, setUnavailabilities] = useState<Availability[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -63,7 +61,9 @@ export default function EmployeeDashboard() {
   // --- INIT ---
   useEffect(() => {
     const userStr = localStorage.getItem('brigade_user');
-    if (!userStr) { navigate('/'); return; }
+    // FIX LOOP: Se non c'è utente, vai al LOGIN, non alla Home (che potrebbe rimandarti qui)
+    if (!userStr) { navigate('/login'); return; }
+    
     setCurrentUser(JSON.parse(userStr));
 
     async function init() {
@@ -76,12 +76,11 @@ export default function EmployeeDashboard() {
       const nowISO = new Date().toISOString();
       const { data: ann } = await supabase.from('announcements').select('*').lte('visible_from', nowISO).gte('visible_until', nowISO).order('created_at', { ascending: false });
       setAnnouncements(ann || []);
-      setLoading(false);
     }
     init();
   }, []);
 
-  // POLLING & AUTOSCROLL
+  // POLLING
   useEffect(() => {
     if (currentUser) {
       fetchMyShifts(); fetchMyRequests(); fetchActiveEntry(); fetchUnavailabilities(); checkUnread(); fetchAnnouncements();
@@ -145,22 +144,11 @@ export default function EmployeeDashboard() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedColleague || !currentUser) return;
-    
     const content = newMessage;
-    setNewMessage(''); // Reset input immediato
-
-    const { error } = await supabase.from('direct_messages').insert({ 
-      sender_id: currentUser.id, 
-      receiver_id: selectedColleague.id, 
-      content: content 
-    });
-
-    if (error) {
-      // Questo alert ti dirà se lo script SQL non è stato eseguito
-      alert("Errore invio: " + error.message + ". Contatta l'amministratore (DB Lock).");
-    } else {
-      fetchAllMessages(); 
-    }
+    setNewMessage('');
+    const { error } = await supabase.from('direct_messages').insert({ sender_id: currentUser.id, receiver_id: selectedColleague.id, content: content });
+    if (error) alert("Errore invio: " + error.message);
+    else fetchAllMessages();
   };
 
   const openChat = async (employee: Employee) => {
@@ -198,7 +186,7 @@ export default function EmployeeDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans text-slate-900 overflow-x-hidden">
       
-      {/* ⚠️ SMART BANNER (FIX MOBILE: min-w-0 permette il truncate corretto) */}
+      {/* ⚠️ SMART BANNER */}
       {announcements.length > 0 && (
         <div 
           onClick={() => setIsAnnounceModalOpen(true)}
@@ -232,11 +220,11 @@ export default function EmployeeDashboard() {
         <div className="flex justify-between items-start mb-6">
           <div className="flex items-center gap-3">
             
-            {/* TASTO ADMIN (Torna al planning - Solo per Admin) */}
+            {/* TASTO ADMIN */}
             {currentUser.role === 'admin' && (
               <button 
-                onClick={() => navigate('/admin')} 
-                className="p-3 bg-slate-900 text-white rounded-full shadow-lg hover:bg-slate-800 transition-all active:scale-95 border-2 border-slate-700"
+                onClick={() => navigate('/')} 
+                className="p-3 bg-slate-900 text-white rounded-full shadow-lg hover:bg-slate-800 transition-all active:scale-95 border-2 border-slate-700 hidden md:flex"
                 title="Torna al Pannello Admin"
               >
                 <Shield className="w-5 h-5" />
@@ -259,14 +247,15 @@ export default function EmployeeDashboard() {
           <div className="flex gap-2">
             {settings.enable_chat && (<button onClick={() => { setIsChatOpen(true); fetchAllMessages(); }} className="p-3 bg-indigo-50 text-indigo-600 rounded-full relative active:scale-95 border border-indigo-200"><MessageSquare className="w-5 h-5" /></button>)}
             <button onClick={() => setIsNotifOpen(true)} className="p-3 bg-slate-100 rounded-full text-slate-600 relative active:scale-95"><Bell className="w-5 h-5" />{unreadCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white animate-pulse">{unreadCount}</span>}</button>
-            <button onClick={() => { localStorage.removeItem('brigade_user'); navigate('/'); }} className="p-3 bg-slate-100 rounded-full text-slate-500"><LogOut className="w-5 h-5" /></button>
+            <button onClick={() => { localStorage.removeItem('brigade_user'); navigate('/login'); }} className="p-3 bg-slate-100 rounded-full text-slate-500"><LogOut className="w-5 h-5" /></button>
           </div>
         </div>
         
         {settings.enable_time_clock && (<div className="mb-6 space-y-3">{!activeEntry ? ( <button onClick={handleClockIn} className="w-full bg-emerald-600 text-white p-4 rounded-2xl shadow-lg shadow-emerald-200 flex items-center justify-between active:scale-95 transition-transform"><div className="flex items-center gap-4"><div className="bg-white/20 p-2.5 rounded-xl"><Play className="w-6 h-6 fill-current"/></div><div className="text-left"><p className="font-bold text-lg leading-none">Inizia Turno</p><p className="text-emerald-100 text-xs mt-1 font-medium">Registra il tuo ingresso</p></div></div></button> ) : ( <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl space-y-4"><div className="flex justify-between items-center"><div className="flex items-center gap-4"><div className="bg-red-500 p-2.5 rounded-xl animate-bounce"><Clock className="w-6 h-6"/></div><div className="text-left"><p className="font-bold text-lg leading-none">In Servizio</p><p className="text-slate-400 text-xs mt-1 font-medium font-mono">Dalle {format(parseISO(activeEntry.clock_in), 'HH:mm')}</p></div></div><button onClick={handleClockOut} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-bold text-sm shadow-md transition-colors flex items-center gap-2"><Square className="w-4 h-4 fill-current"/> Stop</button></div>{!activeEntry.break_end && (<button onClick={toggleBreak} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors ${isOnBreak ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-white/10 hover:bg-white/20 text-white'}`}><Coffee className="w-5 h-5"/> {isOnBreak ? 'Termina Pausa' : 'Inizia Pausa'}</button>)}{activeEntry.break_end && <p className="text-center text-xs text-slate-500">Pausa effettuata</p>}</div> )}</div>)}
         {nextShift && !activeEntry ? ( <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative overflow-hidden group"><div className="flex justify-between items-start"><div><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Prossimo Turno</p><div className="text-3xl font-bold mb-1 tracking-tight text-slate-800">{format(parseISO(nextShift.start_time), 'HH:mm')}<span className="text-slate-400 text-xl font-normal ml-2">- {format(parseISO(nextShift.end_time), 'HH:mm')}</span></div><p className="text-sm font-bold text-indigo-600 mb-0">{isToday(parseISO(nextShift.start_time)) ? 'Oggi' : isTomorrow(parseISO(nextShift.start_time)) ? 'Domani' : format(parseISO(nextShift.start_time), 'EEEE d MMMM', { locale: it })}</p></div>{nextShift.notes && <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wide border border-indigo-100">{nextShift.notes}</span>}</div></div> ) : null}
       </div>
-
+      
+      {/* RESTO DELLA DASHBOARD (Invariato) */}
       <div className="px-4 -mt-6 relative z-20 grid grid-cols-2 gap-3"><button onClick={() => setIsRequestModalOpen(true)} className="bg-white hover:bg-slate-50 text-slate-800 p-4 rounded-2xl shadow-md border border-slate-100 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"><PlusCircle className="w-6 h-6 text-indigo-600"/><span className="text-xs font-bold">Chiedi Ferie</span></button><button onClick={() => setShowUnavailForm(true)} className="bg-white hover:bg-slate-50 text-slate-800 p-4 rounded-2xl shadow-md border border-slate-100 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform"><CalendarX className="w-6 h-6 text-red-500"/><span className="text-xs font-bold">Non ci sono</span></button></div>
       {showUnavailForm && ( <div className="px-4 mt-4 animate-in slide-in-from-top-4"><div className="bg-red-50 p-4 rounded-2xl border border-red-100"><h4 className="font-bold text-red-800 text-sm mb-2">Segnala Indisponibilità</h4><form onSubmit={handleAddUnavailability} className="space-y-2"><input type="date" required value={unavailDate} onChange={e => setUnavailDate(e.target.value)} className="w-full p-2 rounded-lg border border-red-200 text-sm" /><input type="text" required placeholder="Motivo (es. Esame)" value={unavailReason} onChange={e => setUnavailReason(e.target.value)} className="w-full p-2 rounded-lg border border-red-200 text-sm" /><div className="flex gap-2 pt-2"><button type="button" onClick={() => setShowUnavailForm(false)} className="flex-1 py-2 text-xs font-bold text-slate-500">Annulla</button><button type="submit" className="flex-1 py-2 bg-red-600 text-white rounded-lg text-xs font-bold shadow-sm">Invia</button></div></form></div></div> )}
       
@@ -276,7 +265,7 @@ export default function EmployeeDashboard() {
         <section><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider"><CheckCircle2 className="w-4 h-4 text-slate-400" /> Storico Richieste</h3><div className="space-y-3">{requests.length > 0 ? requests.map(req => (<div key={req.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden"><div className={`absolute left-0 top-0 bottom-0 w-1 ${req.status === 'approved' ? 'bg-green-500' : req.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-400'}`}></div><div className="flex justify-between items-start mb-2 pl-2"><div className="flex items-center gap-2"><span className="font-bold text-slate-700 text-sm">{req.reason}</span>{!req.is_all_day && <span className="bg-indigo-50 text-indigo-600 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide border border-indigo-100">Ore</span>}</div>{getStatusBadge(req.status)}</div><div className="text-sm text-slate-500 pl-2">{req.is_all_day ? (<div className="flex items-center gap-1"><span className="font-semibold text-slate-800">{format(parseISO(req.start_date), 'd MMM', { locale: it })}</span> <span className="text-slate-300">→</span><span className="font-semibold text-slate-800">{format(parseISO(req.end_date), 'd MMM', { locale: it })}</span></div>) : (<div className="flex flex-col gap-1"><span className="text-xs font-semibold text-slate-800 capitalize border-b border-slate-100 pb-1 mb-1 w-fit">{format(parseISO(req.start_date), 'EEE d MMM', { locale: it })}</span><div className="flex items-center gap-2 font-mono text-xs"><span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{format(parseISO(req.start_date), 'HH:mm')}</span><span className="text-slate-300">→</span><span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">{format(parseISO(req.end_date), 'HH:mm')}</span></div></div>)}</div></div>)) : <div className="text-center py-6 bg-white rounded-2xl border border-dashed border-slate-200"><p className="text-slate-400 text-sm">Non hai ancora chiesto ferie.</p></div>}</div></section>
       </div>
 
-      {/* --- MODALE AVVISI EXPANDED --- */}
+      {/* MODALE AVVISI EXPANDED */}
       {isAnnounceModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
@@ -310,7 +299,7 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
-      {/* --- TELEGRAM STYLE CHAT --- */}
+      {/* TELEGRAM STYLE CHAT */}
       {isChatOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl w-full max-w-lg h-[85vh] overflow-hidden flex flex-col shadow-2xl">

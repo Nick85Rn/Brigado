@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase';
 import { ChefHat, Lock, User, ArrowRight, KeyRound, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -18,14 +18,25 @@ export default function LoginPage() {
 
   const [tempUser, setTempUser] = useState<any>(null);
 
-  // --- CHECK SESSIONE ESISTENTE (NUOVO) ---
+  // LOGICA DI REINDIRIZZAMENTO CENTRALIZZATA
+  const redirectUser = (user: any) => {
+    const isMobile = window.innerWidth < 768;
+    
+    if (isMobile) {
+      // FIX LOOP: Se è mobile, va SEMPRE alla dashboard dipendente
+      // L'admin potrà vedere i suoi turni o usare il tasto desktop se necessario
+      navigate('/employee');
+    } else {
+      // Se è desktop, smista in base al ruolo
+      if (user.role === 'admin') navigate('/');
+      else navigate('/employee');
+    }
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem('brigade_user');
     if (storedUser) {
-      const user = JSON.parse(storedUser);
-      // Redirect immediato se già loggato
-      if (user.role === 'admin') navigate('/admin');
-      else navigate('/staff');
+      redirectUser(JSON.parse(storedUser));
     }
   }, []);
 
@@ -78,12 +89,12 @@ export default function LoginPage() {
 
   const finalizeLogin = (user: any) => {
     localStorage.setItem('brigade_user', JSON.stringify(user));
-    if (user.role === 'admin') navigate('/admin');
-    else navigate('/staff');
+    redirectUser(user);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white font-sans relative overflow-hidden">
+      {/* Background Effects */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600 rounded-full blur-[120px]"></div>
@@ -136,7 +147,7 @@ export default function LoginPage() {
             </form>
           )}
         </div>
-        <p className="text-center text-slate-600 text-xs mt-8">v2.1.1 • Powered by Pellicioni Nicola</p>
+        <p className="text-center text-slate-600 text-xs mt-8">v2.1.2 • Powered by Pellicioni Nicola</p>
       </div>
     </div>
   );
